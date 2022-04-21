@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xmlns:aop="http://www.springframework.org/schema/aop"
+	xmlns:tx="http://www.springframework.org/schema/tx"
+	xsi:schemaLocation="http://www.springframework.org/schema/beans https://www.springframework.org/schema/beans/spring-beans.xsd
+		http://www.springframework.org/schema/aop http://www.springframework.org/schema/aop/spring-aop-3.1.xsd
+		http://www.springframework.org/schema/tx http://www.springframework.org/schema/tx/spring-tx-3.1.xsd">
+	
+	<!-- Root Context: defines shared resources visible to all other web components -->
+	<!-- 서버 구동시 web.xml을 거쳐서 바로 로딩되는 설정파일로 바로 셋팅되어야 하는 DB연결, 트랜젹션 처리, AOP 관련설정들 관리 -->
+	
+	<!-- 1. org.mybatis.spring.SqlSessionTemplate-->
+	<bean id="sqlSession" class="org.mybatis.spring.SqlSessionTemplate">
+		<constructor-arg ref="sqlSessionFactory"/>	
+	</bean>
+		
+	<bean id="sqlSessionFactory" class="org.mybatis.spring.SqlSessionFactoryBean">
+		<property name="configLocation" value="classpath:mybatis-config.xml"/>
+		<property name="dataSource" ref="dataSource"/>
+	</bean> 
+	
+	<!-- destroy-method="close" 세션 자동으로 close , defaultAutoCommit 오토커밋 할지-->
+	<bean id="realDataSource" class="org.apache.commons.dbcp.BasicDataSource" destroy-method="close">
+		<property name="driverClassName" value="oracle.jdbc.driver.OracleDriver"/>
+		<property name="url" value="jdbc:oracle:thin:@localhost:1521:xe"/>
+		<property name="username" value="springBoard"/>
+		<property name="password" value="springBoard"/>
+		<property name="defaultAutoCommit" value="false"/>
+	</bean>
+
+	<!-- log4j로 출력하게 설정잡아줌 -->  
+	<bean id="dataSource" class="net.sf.log4jdbc.Log4jdbcProxyDataSource">
+		<constructor-arg ref="realDataSource"/>
+		<property name="logFormatter">
+			<bean class="net.sf.log4jdbc.tools.Log4JdbcCustomFormatter">
+				<property name="loggingType" value="MULTI_LINE"/>
+				<property name="sqlPrefix" value="[SQL] "/>
+			</bean>
+		</property>
+	</bean>
+		  
+	<bean id="transactionManager" class="org.springframework.jdbc.datasource.DataSourceTransactionManager">
+	<property name="dataSource" ref="dataSource"/>
+	</bean>
+
+	<!-- 해당 메소드 명을 포함하는 메소드의 Exception이 rollback적용하도록 -->
+	<!-- 전체 메소드에 적용하려면 : <tx:method name="*" rollback-for="Exception" />  -->
+	<tx:advice id="txAdvice" transaction-manager="transactionManager">
+		<tx:attributes>
+			 <tx:method name="*" rollback-for="Exception" /> 
+		</tx:attributes>
+	</tx:advice>
+	
+	<!-- Namespaces에서 aop체크 하기, com.kh.spring.. 모든 서브패키지 안에 있는 모든 메서드에 pointcut으로 적용 -->
+	<aop:config >
+		<aop:pointcut expression="execution(* com.kh.spring..*ServiceImpl*.*(..))" id="serviceMethod"/>
+		<aop:advisor id="transactionAdvisor" pointcut-ref="serviceMethod" advice-ref="txAdvice"/>
+	</aop:config>	    
+	
+	<!--2. 파일 업로드 시 사용 (파일크기지정) MultipartResolver -->
+	<bean id="multipartResolver" class="org.springframework.web.multipart.commons.CommonsMultipartResolver">
+		<property name="maxUploadSize" value="100000000" />
+		<property name="maxInMemorySize" value="100000000" />
+	</bean>
+	
+	
+	
+	<!-- 오라클 연동 (링크 참조한 것, 기존에 했던 것과 조금 달라 주석 처리)
+	<bean class="org.springframework.jdbc.datasource.DriverManagerDataSource" id="dataSource">
+		<property value="oracle.jdbc.driver.OracleDriver" name="driverClassName"/>
+		<property value="jdbc:oracle:thin:@localhost:1521:xe" name="url"/>
+		
+		<property value="MYSTUYD" name="username"/>
+		<property value="masdf" name="password"/>
+	</bean>
+	
+	<bean class="org.mybatis.spring.SqlSessionFactoryBean" id="SqlSessionFactory">
+		<property name="dataSource" ref="dataSource"/>
+		<property value="classpath:/mybatis-config.xml" name="configLocation"/>
+		<property value="classpath:/mappers/*Mappers.xml" name="mapperLocations"/>
+	</bean>
+	
+	<mybatis-spring:scan base-package="com.board.mapper"></mybatis-spring:scan>
+	-->
+</beans>
